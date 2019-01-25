@@ -1,0 +1,5 @@
+project(':alice') {
+    dependencies {
+        compile project(':common')
+    }
+}

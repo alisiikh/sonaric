@@ -1,0 +1,109 @@
+buildscript {
+    repositories {
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+        jcenter()
+    }
+    dependencies {
+        classpath "org.sonarsource.scanner.gradle:sonarqube-gradle-plugin:2.7"
+        classpath "gradle.plugin.org.scoverage:gradle-scoverage:2.5.0"
+        classpath "gradle.plugin.com.github.maiflai:gradle-scalatest:0.23"
+    }
+}
+
+
+apply plugin: 'idea'
+apply plugin: 'org.sonarqube'
+apply plugin: 'application'
+
+group = 'com.example'
+version = '1.0.0'
+
+sourceCompatibility = '1.8'
+targetCompatibility = '1.8'
+
+sonarqube {
+    properties {
+        property "sonar.host.url", "http://localhost"
+        property "sonar.login", "35f5de73bbd64bd51d46cbbe5b3ee877947e7269"
+        property "sonar.scala.version", "2.12.8"
+        property "sonar.sourceEncoding", "UTF-8"
+
+        property "sonar.projectKey", "${project.group}:${project.name}"
+        property "sonar.projectName", project.name
+        property "sonar.sources", subprojects.collect { p -> project.file("${p.projectDir}/src/main/scala") }
+        property "sonar.tests", subprojects.collect { p -> project.file("${p.projectDir}/src/test/scala") }
+        property "sonar.scala.scalastyle.disable", "false"
+        property "sonar.scala.version", "2.12"
+        property "sonar.scala.scoverage.reportPath", project.file("${buildDir}/scoverage-aggregate/scoverage.xml")
+        property "sonar.exclusions", "src/main/scala/**"
+        property "sonar.test.exclusions", "src/test/scala/**"
+    }
+}
+
+subprojects {
+    apply plugin: 'scala'
+    apply plugin: 'org.scoverage'
+    apply plugin: 'com.github.maiflai.scalatest'
+
+    repositories {
+        jcenter()
+        mavenCentral()
+    }
+
+    dependencies {
+        compile 'org.scala-lang:scala-library:2.12.8'
+
+        testCompile 'org.scalatest:scalatest_2.12:3.0.1'
+        testRuntime 'org.pegdown:pegdown:1.4.2'
+
+        scoverage 'org.scoverage:scalac-scoverage-plugin_2.12:1.3.1'
+        scoverage 'org.scoverage:scalac-scoverage-runtime_2.12:1.3.1'
+    }
+
+    sourceSets {
+        test {
+            compileClasspath += scoverage.output
+            runtimeClasspath += scoverage.output + configurations.scoverage
+        }
+    }
+
+    scoverage {
+        coverageDebug = true
+    }
+
+    test {
+        classpath = sourceSets.scoverage.output +
+                configurations.scoverage +
+                sourceSets.test.runtimeClasspath
+    }
+
+    reportScoverage.dependsOn.remove(testScoverage)
+    reportScoverage.dependsOn(test)
+}
+
+def sonarqubeTask = tasks.findByName('sonarqube')
+
+apply plugin: 'org.scoverage'
+repositories {
+    jcenter()
+    mavenCentral()
+}
+dependencies {
+    compile 'org.scala-lang:scala-library:2.12.8'
+
+    scoverage 'org.scoverage:scalac-scoverage-plugin_2.12:1.3.1'
+    scoverage 'org.scoverage:scalac-scoverage-runtime_2.12:1.3.1'
+}
+
+task aggregateScoverage(type: org.scoverage.ScoverageAggregate)
+
+subprojects.each { p ->
+    aggregateScoverage.dependsOn(p.reportScoverage)
+}
+sonarqubeTask.dependsOn(aggregateScoverage)
+
+apply from: 'bob/module.gradle'
+apply from: 'alice/module.gradle'
+
